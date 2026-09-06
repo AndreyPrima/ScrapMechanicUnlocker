@@ -1,0 +1,9 @@
+# Binaries (build locally, or grab them from Releases)
+sm-unlocker-linux
+sm-unlocker-windows.exe
+*.exe
+
+# Go build cache / test artifacts
+/bin/
+*.test
+*.out
