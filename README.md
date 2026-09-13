@@ -1,26 +1,39 @@
 # SM Unlocker
 
-![CI](https://github.com/AndreyPrima/ScrapMechanicUnlocker/actions/workflows/ci.yml/badge.svg) ![Release](https://img.shields.io/github/v/release/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Downloads](https://img.shields.io/github/downloads/AndreyPrima/ScrapMechanicUnlocker/total?style=flat-square) ![Go](https://img.shields.io/github/go-mod/go-version/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Platform](https://img.shields.io/badge/Windows_%7C_Linux-black?style=flat-square)
+[![Release](https://img.shields.io/github/v/release/AndreyPrima/ScrapMechanicUnlocker?style=flat-square)](https://github.com/AndreyPrima/ScrapMechanicUnlocker/releases/latest) [![CI](https://github.com/AndreyPrima/ScrapMechanicUnlocker/actions/workflows/ci.yml/badge.svg)](https://github.com/AndreyPrima/ScrapMechanicUnlocker/actions)
 
-Point SM Unlocker at your Scrap Mechanic `unlock` file and unlock all 252 outfits in one click. The app takes your Steam ID from the `User_<id>` folder and stores your original file as `unlock.bak` on first run.
+Unlock all **252** Scrap Mechanic outfits in one click.
 
-You get one black window on Windows and Linux. The code is Go + Fyne.
+![SM Unlocker window](assets/screenshot.png)
 
-The file dialog opens in the detected Scrap Mechanic folder and remembers the last folder you picked. The app auto-selects the `unlock` file when it finds one (most recent when several exist) and accepts a pasted path. The Restore `.bak` button brings back the first-run backup. The app keeps the original file as `unlock.bak` (first run only, never overwritten).
+## Download
+
+Grab the latest release: **[Download SM Unlocker](https://github.com/AndreyPrima/ScrapMechanicUnlocker/releases/latest)**
+
+- Linux: `sm-unlocker-linux`
+- Windows: `sm-unlocker-windows.exe`
+
+## Use
+
+1. Open the app. It finds your `unlock` file on its own. If not, press **Browse** or paste the path.
+2. Press **Unlock all (252)**.
+3. Done. Play.
+
+Point the app at the file inside the `User_<id>` folder so it reads your Steam ID. Your original file stays safe as `unlock.bak`, and **Restore .bak** brings it back.
 
 ## Origin
 
-This app shipped as a closed-source Windows `.exe`. I decompiled it, rebuilt it in Go + Fyne through vibecode, and put the source here. You get the same unlock format, byte for byte.
+Rebuilt from the original closed-source `.exe` in Go + Fyne. Same unlock format, byte for byte.
 
-## Run
+## Developers
+
+<details>
+<summary>Run, build, test</summary>
 
 ```sh
 go run .
+go test ./... -count=1
 ```
-
-## Build
-
-CI runs `go vet` and `go test` on every push and pull request, and each `v*` tag release attaches `sm-unlocker-linux`, `sm-unlocker-windows.exe`, and `sha256sums.txt`. Reproduce the same builds locally:
 
 Build for Linux:
 
@@ -36,25 +49,10 @@ GOOS=windows GOARCH=amd64 \
 go build -ldflags="-s -w -H=windowsgui" -o sm-unlocker-windows.exe .
 ```
 
-You pick files through the native GTK dialog on Linux (install the `gtk3` dev packages to build it) and through `GetOpenFileName` on Windows.
+Layout: `main.go`, `theme/`, `ui/`, `internal/unlock/`, `internal/steam/`, `internal/service/`.
 
-## Test
-
-```sh
-go test ./... -count=1
-```
-
-## Layout
-
-```text
-main.go                 # app setup, black theme, opens UI
-theme/black.go          # monochrome dark-only Fyne theme
-ui/window.go            # minimal window: file row, Unlock + Restore buttons, status line
-internal/unlock/        # unlock file codec + 252 outfit IDs
-internal/steam/         # Scrap Mechanic folder lookup (Windows + Proton)
-internal/service/       # inspect/unlock orchestration, backup, atomic write
-```
+</details>
 
 ## Bugs
 
-You may run into bugs. Open an issue and describe what broke, with your OS and the status line text.
+Open an issue with your OS and the status line text.
