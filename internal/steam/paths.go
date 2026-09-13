@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 )
 
@@ -41,6 +42,7 @@ func buildUserDirs() []string {
 	home := homeDir()
 	roots := []string{
 		filepath.Join(home, ".steam", "steam"),
+		filepath.Join(home, ".steam", "debian-installation"),
 		filepath.Join(home, ".local", "share", "Steam"),
 		filepath.Join(home, ".steam", "root"),
 		filepath.Join(home, "snap", "steam", "common", ".local", "share", "Steam"),
@@ -72,6 +74,34 @@ func buildUserDirs() []string {
 		}
 	}
 	return append(existing, rest...)
+}
+
+// FindUnlockFiles scans UserDirs for existing User_*/unlock files.
+// Unreadable or missing dirs are skipped silently. Result is sorted.
+func FindUnlockFiles() []string {
+	return findUnlockFilesIn(UserDirs())
+}
+
+func findUnlockFilesIn(dirs []string) []string {
+	var out []string
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !e.IsDir() || len(name) <= 5 || name[:5] != "User_" {
+				continue
+			}
+			fp := filepath.Join(dir, name, "unlock")
+			if st, err := os.Stat(fp); err == nil && !st.IsDir() {
+				out = append(out, fp)
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // DefaultDir is the best starting dir for the file dialog.

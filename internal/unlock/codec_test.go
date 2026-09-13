@@ -3,6 +3,7 @@ package unlock
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -111,5 +112,58 @@ func TestBadUUID(t *testing.T) {
 func TestExtractEmpty(t *testing.T) {
 	if got := ExtractSteamIDFromPath("/tmp/nothing"); got != "" {
 		t.Fatalf("want empty, got %q", got)
+	}
+}
+
+func TestVerifyCRCRoundTrip(t *testing.T) {
+	data, err := GenerateUnlockFile("76561198000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyCRC(data, "76561198000000000"); err != nil {
+		t.Fatalf("valid file failed verify: %v", err)
+	}
+	if err := VerifyCRC(data, "76561198000000001"); !errors.Is(err, ErrCRCMismatch) {
+		t.Fatalf("want ErrCRCMismatch for wrong steam id, got %v", err)
+	}
+	tampered := append([]byte(nil), data...)
+	tampered[len(tampered)-1] ^= 0xff
+	if err := VerifyCRC(tampered, "76561198000000000"); !errors.Is(err, ErrCRCMismatch) {
+		t.Fatalf("want ErrCRCMismatch for tampered file, got %v", err)
+	}
+}
+
+func TestVerifyFileCRC(t *testing.T) {
+	data, err := GenerateUnlockFile("76561198000000000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "unlock")
+	if err := os.WriteFile(fp, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyFileCRC(fp, "76561198000000000"); err != nil {
+		t.Fatalf("valid file failed verify: %v", err)
+	}
+	if err := VerifyFileCRC(fp, "76561198000000001"); !errors.Is(err, ErrCRCMismatch) {
+		t.Fatalf("want ErrCRCMismatch, got %v", err)
+	}
+}
+
+func TestHugeCountTruncated(t *testing.T) {
+	data := make([]byte, 12)
+	binary.BigEndian.PutUint32(data[0:4], 1)
+	binary.BigEndian.PutUint32(data[8:12], 0xFFFFFFFF)
+	dir := t.TempDir()
+	fp := filepath.Join(dir, "unlock")
+	if err := os.WriteFile(fp, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadUnlockFile(fp); err != ErrTruncated {
+		t.Fatalf("want ErrTruncated, got %v", err)
+	}
+	if err := VerifyCRC(data, "76561198000000000"); err != ErrTruncated {
+		t.Fatalf("want ErrTruncated, got %v", err)
 	}
 }

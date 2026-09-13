@@ -28,7 +28,6 @@ func Inspect(path string) (Result, error) {
 		return r, err
 	}
 	r.Before = len(current)
-	r.After = r.Total
 	steamID := unlock.ExtractSteamIDFromPath(path)
 	if steamID == "" {
 		return r, fmt.Errorf("could not determine Steam ID from path (expected .../User_<id>/...): %s", path)
@@ -45,6 +44,7 @@ func Inspect(path string) (Result, error) {
 		}
 	}
 	r.Added = missing
+	r.After = r.Total
 	return r, nil
 }
 
@@ -55,21 +55,34 @@ func Unlock(path string) (Result, error) {
 	if err != nil {
 		return r, err
 	}
+	if r.Added == 0 {
+		r.After = r.Before
+		return r, nil
+	}
 	content, err := unlock.GenerateUnlockFile(r.SteamID)
 	if err != nil {
 		return r, err
 	}
-	if err := writeBackupOnce(path); err != nil {
+	perm := fileMode(path)
+	if err := writeBackupOnce(path, perm); err != nil {
 		return r, err
 	}
-	if err := writeAtomic(path, content, 0o644); err != nil {
+	if err := writeAtomic(path, content, perm); err != nil {
 		return r, err
 	}
 	return r, nil
 }
 
+// fileMode returns the permission bits of path, falling back to 0644.
+func fileMode(path string) os.FileMode {
+	if st, err := os.Stat(path); err == nil {
+		return st.Mode().Perm()
+	}
+	return 0o644
+}
+
 // writeBackupOnce copies path to path+".bak" unless the backup exists.
-func writeBackupOnce(path string) error {
+func writeBackupOnce(path string, perm os.FileMode) error {
 	bak := path + ".bak"
 	if _, err := os.Stat(bak); err == nil {
 		return nil
@@ -78,7 +91,7 @@ func writeBackupOnce(path string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(bak, data, 0o644)
+	return os.WriteFile(bak, data, perm)
 }
 
 // writeAtomic writes via temp file in the same dir + rename + fsync.
@@ -89,7 +102,12 @@ func writeAtomic(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName)
+	success := false
+	defer func() {
+		if !success {
+			_ = os.Remove(tmpName)
+		}
+	}()
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		return err
@@ -104,5 +122,15 @@ func writeAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.Chmod(tmpName, perm); err != nil {
 		return err
 	}
-	return os.Rename(tmpName, path)
+	if err := os.Rename(tmpName, path); err != nil {
+		// Windows refuses to rename over an existing file: remove + retry.
+		if rmErr := os.Remove(path); rmErr != nil {
+			return err
+		}
+		if err := os.Rename(tmpName, path); err != nil {
+			return err
+		}
+	}
+	success = true
+	return nil
 }

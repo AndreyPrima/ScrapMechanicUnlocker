@@ -1,10 +1,12 @@
 # SM Unlocker
 
-![Release](https://img.shields.io/github/v/release/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Downloads](https://img.shields.io/github/downloads/AndreyPrima/ScrapMechanicUnlocker/total?style=flat-square) ![Go](https://img.shields.io/github/go-mod/go-version/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Platform](https://img.shields.io/badge/Windows_%7C_Linux-black?style=flat-square)
+![CI](https://github.com/AndreyPrima/ScrapMechanicUnlocker/actions/workflows/ci.yml/badge.svg) ![Release](https://img.shields.io/github/v/release/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Downloads](https://img.shields.io/github/downloads/AndreyPrima/ScrapMechanicUnlocker/total?style=flat-square) ![Go](https://img.shields.io/github/go-mod/go-version/AndreyPrima/ScrapMechanicUnlocker?style=flat-square) ![Platform](https://img.shields.io/badge/Windows_%7C_Linux-black?style=flat-square)
 
 Point SM Unlocker at your Scrap Mechanic `unlock` file and unlock all 252 outfits in one click. The app takes your Steam ID from the `User_<id>` folder and stores your original file as `unlock.bak` on first run.
 
 You get one black window on Windows and Linux. The code is Go + Fyne.
+
+The file dialog opens in the detected Scrap Mechanic folder and remembers the last folder you picked. The app auto-selects the `unlock` file when it finds one (most recent when several exist) and accepts a pasted path. The Restore `.bak` button brings back the first-run backup. The app keeps the original file as `unlock.bak` (first run only, never overwritten).
 
 ## Origin
 
@@ -17,6 +19,8 @@ go run .
 ```
 
 ## Build
+
+CI runs `go vet` and `go test` on every push and pull request, and each `v*` tag release attaches `sm-unlocker-linux`, `sm-unlocker-windows.exe`, and `sha256sums.txt`. Reproduce the same builds locally:
 
 Build for Linux:
 
@@ -45,7 +49,7 @@ go test ./... -count=1
 ```text
 main.go                 # app setup, black theme, opens UI
 theme/black.go          # monochrome dark-only Fyne theme
-ui/window.go            # minimal window: file row, Unlock button, status line
+ui/window.go            # minimal window: file row, Unlock + Restore buttons, status line
 internal/unlock/        # unlock file codec + 252 outfit IDs
 internal/steam/         # Scrap Mechanic folder lookup (Windows + Proton)
 internal/service/       # inspect/unlock orchestration, backup, atomic write

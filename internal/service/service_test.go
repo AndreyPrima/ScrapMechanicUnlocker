@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"smunlocker/internal/unlock"
 )
@@ -121,5 +122,62 @@ func TestInspectMissingSteamID(t *testing.T) {
 	}
 	if _, err := Inspect(fp); err == nil {
 		t.Fatal("want error for path without User_<id>")
+	}
+}
+
+func TestUnlockNoOpPreservesMtime(t *testing.T) {
+	dir := t.TempDir()
+	fp := writeSeedFile(t, dir, "76561198000000000", unlock.SortedOutfitIDs)
+	stamp := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	if err := os.Chtimes(fp, stamp, stamp); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Unlock(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Added != 0 || r.After != r.Before {
+		t.Fatalf("no-op should report After==Before: %+v", r)
+	}
+	after, err := os.ReadFile(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("no-op unlock rewrote the file")
+	}
+	st, err := os.Stat(fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.ModTime().Equal(stamp) {
+		t.Fatalf("mtime changed: %v != %v", st.ModTime(), stamp)
+	}
+	if _, err := os.Stat(fp + ".bak"); !os.IsNotExist(err) {
+		t.Fatal("no-op unlock should not create .bak")
+	}
+}
+
+func TestUnlockPreservesPerms(t *testing.T) {
+	dir := t.TempDir()
+	fp := writeSeedFile(t, dir, "76561198000000000", unlock.SortedOutfitIDs[:3])
+	if err := os.Chmod(fp, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Unlock(fp); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{fp, fp + ".bak"} {
+		st, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if st.Mode().Perm() != 0o600 {
+			t.Fatalf("%s mode = %o, want 600", p, st.Mode().Perm())
+		}
 	}
 }

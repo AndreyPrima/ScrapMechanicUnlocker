@@ -7,3 +7,7 @@ sm-unlocker-windows.exe
 /bin/
 *.test
 *.out
+
+# Release staging / checksums
+/dist/
+sha256sums.txt

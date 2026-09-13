@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	ErrTooSmall   = errors.New("file too small")
-	ErrBadMagic   = errors.New("not an unlock file")
-	ErrTruncated  = errors.New("unlock file is truncated")
-	steamIDRegexp = regexp.MustCompile(`User_(\d+)`)
+	ErrTooSmall    = errors.New("file too small")
+	ErrBadMagic    = errors.New("not an unlock file")
+	ErrTruncated   = errors.New("unlock file is truncated")
+	ErrCRCMismatch = errors.New("unlock file CRC mismatch")
+	steamIDRegexp  = regexp.MustCompile(`User_(\d+)`)
 )
 
 // UUIDToBytes encodes a hyphenated UUID string as 16 raw bytes.
@@ -110,16 +111,57 @@ func ReadUnlockFile(path string) ([]string, error) {
 	if binary.BigEndian.Uint32(data[:4]) != 1 {
 		return nil, ErrBadMagic
 	}
-	count := int(binary.BigEndian.Uint32(data[8:12]))
-	if len(data) < 12+count*16 {
+	count := binary.BigEndian.Uint32(data[8:12])
+	if uint64(count) > uint64((len(data)-12)/16) {
 		return nil, ErrTruncated
 	}
 	out := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		off := 12 + i*16
+	for i := uint32(0); i < count; i++ {
+		off := 12 + int(i)*16
 		out = append(out, formatUUID(data[off:off+16]))
 	}
 	return out, nil
+}
+
+// VerifyCRC checks data against the CRC stored in its header for steamID64.
+// It mirrors GenerateUnlockFile: crc32 IEEE over LE steamID + stored uuid
+// bytes (which Generate writes sorted). Never called by ReadUnlockFile, so
+// byte-parity with the original game format is preserved.
+func VerifyCRC(data []byte, steamID64 string) error {
+	if len(data) < 12 {
+		return ErrTooSmall
+	}
+	if binary.BigEndian.Uint32(data[:4]) != 1 {
+		return ErrBadMagic
+	}
+	count := binary.BigEndian.Uint32(data[8:12])
+	if uint64(count) > uint64((len(data)-12)/16) {
+		return ErrTruncated
+	}
+	id, err := strconv.ParseUint(strings.TrimSpace(steamID64), 10, 64)
+	if err != nil {
+		return fmt.Errorf("bad steam id %q: %w", steamID64, err)
+	}
+	steamBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(steamBytes, id)
+	payload := data[12 : 12+int(count)*16]
+	crcData := make([]byte, 0, len(steamBytes)+len(payload))
+	crcData = append(crcData, steamBytes...)
+	crcData = append(crcData, payload...)
+	want := binary.BigEndian.Uint32(data[4:8])
+	if got := crc32.ChecksumIEEE(crcData); got != want {
+		return fmt.Errorf("%w: want %08x, got %08x", ErrCRCMismatch, want, got)
+	}
+	return nil
+}
+
+// VerifyFileCRC reads path and verifies it like VerifyCRC.
+func VerifyFileCRC(path, steamID64 string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	return VerifyCRC(data, steamID64)
 }
 
 // ExtractSteamIDFromPath returns <steamid> from .../User_<steamid>/... or "".
